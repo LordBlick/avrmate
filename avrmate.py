@@ -14,6 +14,7 @@ import avrList
 class FuseAVR:
 	def __init__(self):
 		self.selSUT=''
+		self.bDefaultLock=False
 		self.argsAVRdude = []
 		self.reHex=re.compile('(0x)([0-9A-F]{1,2})$', re.I | re.L)
 		self.reBin=re.compile('(0b)([01]{1,8})$', re.I | re.L)
@@ -28,13 +29,10 @@ class FuseAVR:
 		self.lBPixbuf = gtk.gdk.pixbuf_new_from_file("pic/Lockbyte.png")
 		self.lbPixbuf = gtk.gdk.pixbuf_new_from_file("pic/Lockbit.png")
 		self.lghtPixbuf = gtk.gdk.pixbuf_new_from_file("pic/Lightenings.png")
-		#self.fsBSmallPixbuf = gtk.gdk.Pixbuf(gtk.gdk.COLORSPACE_RGB, True, 8, 32, 32)
-		#self.fsBPixbuf.scale(self.fsBSmallPixbuf, 0, 0, 40, 10, 0, 0, 0.2, 0.2, gtk.gdk.INTERP_HYPER)
-		#self.fsBSmallPixbuf=self.fsBPixbuf.scale_simple(50, 10, gtk.gdk.INTERP_HYPER)
 		
 		gtk.window_set_default_icon_list(self.fsBPixbuf, self.lghtPixbuf)
 		
-		self.title="Kalkulator Fusebitów AVR"
+		self.title="AVRmate - Fusebits Calculator"
 		
 		self.dialogWindow = gtk.Window(gtk.WINDOW_TOPLEVEL)
 		self.dialogWindow.set_geometry_hints(
@@ -333,6 +331,20 @@ class FuseAVR:
 		return
 
 	def avrdudeGo(self, widget):
+		AvrdudeCmd=self.textAvrdudeCmd.get_text()
+		if AvrdudeCmd:
+			avrdudeTargets=subprocess.Popen(
+				shlex.split(AvrdudeCmd),
+				stdout=subprocess.PIPE,
+				stderr=subprocess.PIPE)
+			child_stdout, child_stderr = avrdudeTargets.communicate()
+			if child_stderr:
+				self.errBox(message=child_stderr)
+			if child_stdout:
+				self.infoBox(message=child_stdout)
+		return
+
+	def avrdudeListuC(self):
 		#avrdudeTargets=subprocess.Popen(
 			#shlex.split('avrdude -p?'),
 			#stdout=subprocess.PIPE,
@@ -347,7 +359,6 @@ class FuseAVR:
 				#if uC!=-1:
 					#print "Is really \"%s\" match \"%s\" ?" % (uC, uC2)
 		#print "stdout:\n%s\nstderr:\n%s" % (child_stdout, child_stderr)
-
 		return
 
 	def avrdudeIcGo(self, widget, icoPos, sigEvent):
@@ -384,6 +395,7 @@ class FuseAVR:
 		index = widget.get_active()
 		if index > -1:
 			self.avdPgm=viewModel[index][1]
+			self.avdPgmPort=viewModel[index][2]
 			self.avrDudeUp()
 		return
 
@@ -402,6 +414,7 @@ class FuseAVR:
 			self.tvBits.set_model(modelBits)
 			self.tvBits.thaw_child_notify()
 			self.tvBits.expand_all()
+			self.bDefaultLock=True
 
 		for n in range(len(self.tvBitsIter)):
 			self.byteUpdate(n)
@@ -433,6 +446,10 @@ class FuseAVR:
 			binByteTxt="%s%s" % (bitVal, binByteTxt)
 		byteVal=int(binByteTxt, 2)
 		self.tsBits.set(byteIt, 3,'0b{:08b}'.format(byteVal), 4, '0x{:02X}'.format(byteVal))
+		byteName=self.tsBits.get_value(byteIt, 8)
+		if byteName=='Lock' and self.bDefaultLock==True:
+			self.defaultLock='0x{:02X}'.format(byteVal)
+			self.bDefaultLock=False
 		return
 
 
@@ -486,8 +503,9 @@ class FuseAVR:
 				byteIt=self.tvBitsIter[byteCfg][0]
 				byteNm=self.ucClList.avdCfgByte(self.tsBits.get_value(byteIt, 8))
 				byteVal=self.tsBits.get_value(byteIt, 4)
-				updateText+=' -U %s:w:%s:m' % (byteNm, byteVal)
-			setText="avrdude -c %s -p %s%s" % (self.avdPgm, self.ucClList.avdName(self.avrData['Name']), updateText)
+				if byteNm=='lock' and byteVal!=self.defaultLock or byteNm!='lock':
+					updateText+=' -U %s:w:%s:m' % (byteNm, byteVal)
+			setText="avrdude -c %s -P %s -p %s%s" % (self.avdPgm, self.avdPgmPort, self.ucClList.avdName(self.avrData['Name']), updateText)
 			self.textAvrdudeCmd.set_text(setText)
 		except AttributeError:
 			pass
@@ -498,14 +516,26 @@ class FuseAVR:
 		return
 
 	def treeTest(self, widget):
-		for n in range(len(self.tvBitsIter)):
-			self.bitsUpdate(n)
-		self.avrDudeUp()
+		self.avrdudeListuC()
 		return
 
 	def quit_cb(self, widget):
 		self.ucClList.empty()
 		gtk.main_quit()
+
+	def infoBox(self, message="Known Comes...!", caption = 'Information...'):
+		dlg = gtk.MessageDialog(parent=None, flags=gtk.DIALOG_DESTROY_WITH_PARENT, type=gtk.MESSAGE_INFO, buttons=gtk.BUTTONS_CLOSE, message_format=None)
+		dlg.set_markup(message)
+		dlg.set_title(caption)
+		dlg.run()
+		dlg.destroy()
+
+	def errBox(self, message="Unknown Comes...!", caption = 'Error!'):
+		dlg = gtk.MessageDialog(parent=None, flags=gtk.DIALOG_DESTROY_WITH_PARENT, type=gtk.MESSAGE_ERROR, buttons=gtk.BUTTONS_CLOSE, message_format=None)
+		dlg.set_markup(message)
+		dlg.set_title(caption)
+		dlg.run()
+		dlg.destroy()
 
 
 
