@@ -1,17 +1,20 @@
-﻿#!/usr/bin/env python
+#!/usr/bin/env python
+# -*- encoding: utf-8 -*-
 # -*- coding: utf-8 -*-
 
-
+#/usr/src/examples/python-serial-2.6
 
 import pygtk
 pygtk.require('2.0')
-import gtk, gobject
+import gtk
 import pango
+import gobject
+import gc
 import re
 import shlex, subprocess
 import avrList
 
-class FuseAVR:
+class clCfgAVR:
 	def __init__(self):
 		self.selSUT=''
 		self.bDefaultLock=False
@@ -19,213 +22,50 @@ class FuseAVR:
 		self.reHex=re.compile('(0x)([0-9A-F]{1,2})$', re.I | re.L)
 		self.reBin=re.compile('(0b)([01]{1,8})$', re.I | re.L)
 		self.reDec=re.compile('([0-9]{1,3})$', re.L)
+		self.devParam = avrList.devParam()
 		self.uiInit()
 		gtk.main()
 
 	def uiInit(self):
-		self.cfBPixbuf = gtk.gdk.pixbuf_new_from_file("pic/Configbyte.png")
-		self.fsBPixbuf = gtk.gdk.pixbuf_new_from_file("pic/Fusebyte.png")
-		self.fsbPixbuf = gtk.gdk.pixbuf_new_from_file("pic/Fusebit.png")
-		self.lBPixbuf = gtk.gdk.pixbuf_new_from_file("pic/Lockbyte.png")
-		self.lbPixbuf = gtk.gdk.pixbuf_new_from_file("pic/Lockbit.png")
-		self.lghtPixbuf = gtk.gdk.pixbuf_new_from_file("pic/Lightenings.png")
-		
-		gtk.window_set_default_icon_list(self.fsBPixbuf, self.lghtPixbuf)
-		
-		self.title="AVRmate - Fusebits Calculator"
-		
-		self.dialogWindow = gtk.Window(gtk.WINDOW_TOPLEVEL)
-		self.dialogWindow.set_geometry_hints(
-			min_width=640, min_height=750, max_width=640, max_height=750)
-		self.dialogWindow.set_title(self.title)
-		self.dialogWindow.set_border_width(5)
-		self.dialogWindow.connect("destroy", lambda w: gtk.main_quit())
-		self.dialogWindow.connect("delete_event", gtk.main_quit)
-		
-		self.fixedFrame = gtk.Fixed()
-		
-		self.labelUcSelect = gtk.Label("µC :")
-		self.labelUcSelect.set_size_request(20, 30)
-		
-		self.fixedFrame.put(self.labelUcSelect, 10, 5)
-		
-		self.cbUcSelect = gtk.ComboBox()
-		self.cbUcSelect.set_size_request(110, 30)
-		self.lsUcSelect = gtk.ListStore(str)
-		self.crtUcSelect = gtk.CellRendererText()
-		self.cbUcSelect.pack_start(self.crtUcSelect)
-		self.cbUcSelect.set_attributes(self.crtUcSelect, text=0)
-		self.cbUcSelect.set_wrap_width(3)
-		self.cbUcSelect.set_model(self.lsUcSelect)
-		self.cbUcSelect.connect("changed", self.ucChanged)
-		
-		self.fixedFrame.put(self.cbUcSelect, 40, 5)
+		from uiMain import uiCfgAVR
+		self.ui = uiCfgAVR()
+		self.ui.title="AVRmate - Fusebits Calculator V.0.51"
+		self.ui.uiInit()
+
+		self.ui.mainWindow.connect("destroy", lambda w: gtk.main_quit())
+		self.ui.mainWindow.connect("delete_event", gtk.main_quit)
+		self.ui.cbUcSelect.connect("changed", self.ucChanged)
 		self.chooseInit()
+		self.ui.cbPgmSelect.connect("changed", self.pgmChanged)
+		
+		for pgmName in self.devParam.lsProgrammers:
+			self.ui.lsPgmSelect.append(pgmName)
+		self.ui.cbPgmSelect.set_active(0)
 
-		self.labelPgmSelect = gtk.Label("Programmer:")
-		self.labelPgmSelect.set_size_request(65, 30)
-		
-		self.fixedFrame.put(self.labelPgmSelect, 160, 5)
-		
-		self.cbPgmSelect = gtk.ComboBox()
-		self.cbPgmSelect.set_size_request(140, 30)
-		self.lsPgmSelect = gtk.ListStore(str, str, str)
-		self.crtPgmSelect = gtk.CellRendererText()
-		self.cbPgmSelect.pack_start(self.crtPgmSelect)
-		self.cbPgmSelect.set_attributes(self.crtPgmSelect, text=0)
-		self.cbPgmSelect.set_wrap_width(3)
-		self.cbPgmSelect.set_model(self.lsPgmSelect)
-		self.cbPgmSelect.connect("changed", self.pgmChanged)
-		
-		self.fixedFrame.put(self.cbPgmSelect, 230, 5)
-		for pgmName in (
-		('USBasp', 'usbasp', '/dev/usbasp'),
-		('AVR Dragon ISP', 'dragon_isp', 'usb'),
-		('AVR Dragon PP', 'dragon_pp', 'usb'),
-		('Amountec JTAG Key', 'jtagkey', 'usb')):
-			self.lsPgmSelect.append(pgmName)
-		self.cbPgmSelect.set_active(0)
+		self.ui.checkClk.connect("toggled", self.avrErTog)
+		self.ui.checkErase.connect("toggled", self.avrErTog)
+		### Begin of Tree Store ###
+		self.ui.crtcbBitsValue.connect('changed', self.cbBitsChanged)
+		self.ui.crtcbBitsValue.connect('editing_started', self.callSkipSelection)
 
-		self.checkClk = gtk.CheckButton("Slower Clock")
-		self.checkClk.set_size_request(100, 30)
-		self.checkClk.connect("toggled", self.avrErTog)
-		
-		self.fixedFrame.put(self.checkClk, 420, 5)
+		self.ui.crtxtBitsValue.connect("edited", self.byteEdited)
+		self.ui.crtxtBitsValue.connect('editing_started', self.callSkipSelection)
+		#self.ui.crtxtBitsValue.connect('editing_canceled', self.callSkipSelection, "Canceled", None)
+		### End of Tree Store ###
 
-		self.checkErase = gtk.CheckButton("Chip Erase")
-		self.checkErase.set_size_request(100, 30)
-		self.checkErase.connect("toggled", self.avrErTog)
-		
-		self.fixedFrame.put(self.checkErase, 530, 5)
+		self.ui.textAvrdudeCmd.connect("icon-release", self.avrdudeIcGo)
+		self.ui.textAvrdudeCmd.connect("activate", self.avrdudeGo)
 
-		
-		self.tsBits = gtk.TreeStore(gtk.gdk.Pixbuf, str, str, str, str, gtk.ListStore, bool, bool, str)
-		
-		
-		self.tvBitsFontSize = 10
-		self.tvBits = gtk.TreeView(self.tsBits)
-
-		#Column #1 - Name
-		colWidth = 125
-		self.tvcBitsName = gtk.TreeViewColumn('Name')
-		self.tvcBitsName.set_alignment(0.5)
-		self.tvcBitsName.set_min_width(colWidth)
-		self.tvcBitsName.set_max_width(colWidth)
-		
-		self.crpxBitsNameB = gtk.CellRendererPixbuf()
-		self.crpxBitsNameB.set_property('cell-background-gdk', gtk.gdk.Color('#050'))
-		self.tvcBitsName.pack_start(self.crpxBitsNameB, False)
-		self.tvcBitsName.set_attributes(self.crpxBitsNameB, pixbuf=0)
-		
-		self.crtxtBitsName = gtk.CellRendererText()
-		self.crtxtBitsName.set_property('cell-background-gdk', gtk.gdk.Color('#280'))
-		self.crtxtBitsName.set_property('stretch', pango.STRETCH_EXTRA_CONDENSED)
-		self.crtxtBitsName.set_property('size-points', self.tvBitsFontSize)
-		self.tvcBitsName.pack_start(self.crtxtBitsName, False)
-		self.tvcBitsName.set_attributes(self.crtxtBitsName, text=1)
-		
-		self.tvBits.append_column(self.tvcBitsName)
-
-		#Column #2 - Description
-		colWidth = 180
-		self.tvcBitsDesc = gtk.TreeViewColumn('Description')
-		self.tvcBitsDesc.set_alignment(0.5)
-		self.tvcBitsDesc.set_min_width(colWidth)
-		self.tvcBitsDesc.set_max_width(colWidth)
-		self.crtxtBitsDesc = gtk.CellRendererText()
-		self.crtxtBitsDesc.set_property('cell-background-gdk', gtk.gdk.Color('#850'))
-		self.crtxtBitsDesc.set_property('size-points', self.tvBitsFontSize)
-		self.crtxtBitsDesc.set_property('wrap-mode', True)
-		self.crtxtBitsDesc.set_property('wrap-width', colWidth)
-		self.tvcBitsDesc.pack_start(self.crtxtBitsDesc, True)
-		self.tvcBitsDesc.set_attributes(self.crtxtBitsDesc, text=2)
-
-		
-		self.tvBits.append_column(self.tvcBitsDesc)
-
-		#Column #3 - Value
-		self.crtcbBitsValue = gtk.CellRendererCombo()
-		cbWidth = 230
-		self.crtcbBitsValue.set_property('cell-background-gdk', gtk.gdk.Color('#055'))
-		self.crtcbBitsValue.set_property('size-points', self.tvBitsFontSize)
-		self.crtcbBitsValue.set_property('text-column', 0)
-		self.crtcbBitsValue.set_property('has-entry', False)
-		self.crtcbBitsValue.set_property('width', cbWidth)
-		self.crtcbBitsValue.connect('changed', self.cbBitsChanged)
-		
-		self.tvcBitsValue = gtk.TreeViewColumn('Setup Value', self.crtcbBitsValue, text=3, model=5, editable=6)
-		self.tvcBitsValue.set_alignment(0.5)
-		
-		self.crtxtBitsValue = gtk.CellRendererText()
-		self.crtxtBitsValue.set_property('cell-background-gdk', gtk.gdk.Color('#085'))
-		self.crtxtBitsValue.set_property('size-points', self.tvBitsFontSize)
-		self.crtxtBitsValue.set_property('xalign', 0.95)
-		self.crtxtBitsValue.connect("edited", self.byteEdited)
-		
-		self.tvcBitsValue.pack_start(self.crtxtBitsValue, True)
-		self.tvcBitsValue.set_attributes(self.crtxtBitsValue, text=4, editable=7)
-		
-		self.tvBits.append_column(self.tvcBitsValue)
-		
-		self.tvBits.set_tooltip_column(2, )
-		#self.tvBits.set_tooltip_column(8, )
-		self.tvBits.set_enable_tree_lines(True)
-
-		self.scroll=gtk.ScrolledWindow()
-		self.scroll.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
-		self.scroll.add(self.tvBits)
-		self.scroll.set_size_request(605, 610)
-		self.fixedFrame.put(self.scroll, 10, 40)
-## ## ## ## ## ## ##
-
-		self.textAvrdudeCmd = gtk.Entry()
-		self.textAvrdudeCmd.set_property("editable", False)
-		self.textAvrdudeCmd.set_icon_from_pixbuf(0, self.lghtPixbuf)
-		self.textAvrdudeCmd.set_icon_tooltip_text(0, 'Click here or pres enter in right text to start avrdude')
-		self.textAvrdudeCmd.connect("icon-release", self.avrdudeIcGo)
-		self.textAvrdudeCmd.connect("activate", self.avrdudeGo)
-		self.textAvrdudeCmd.set_size_request(605, 30)
-		
-		self.fixedFrame.put(self.textAvrdudeCmd, 10, 660)
-		
-		self.imageLogo = gtk.Image()
-		self.imageLogo.set_from_pixbuf(self.cfBPixbuf)
-		
-		self.fixedFrame.put(self.imageLogo, 10, 700)
-		
-		self.buttonTest = gtk.Button("Test")
-		self.buttonTest.set_size_request(50, 25)
-		self.buttonTest.connect("clicked", self.treeTest)
-		
-		self.fixedFrame.put(self.buttonTest, 480, 715)
-
-		accGroup = gtk.AccelGroup()
-		self.dialogWindow.add_accel_group(accGroup)
-
-		self.buttonExit = gtk.Button("Exit (Ctrl+Q)")
-		self.buttonExit.set_size_request(80, 25)
-		self.buttonExit.connect("clicked", self.quit_cb)
-
-		self.buttonExit.add_accelerator(
-			"clicked",
-			accGroup,
-			ord('Q'),
-			gtk.gdk.CONTROL_MASK,
-			gtk.ACCEL_VISIBLE)
-		
-		self.fixedFrame.put(self.buttonExit, 540, 715)
-		
-		self.dialogWindow.add(self.fixedFrame)
-		self.dialogWindow.show_all()
-		self.dialogWindow.set_keep_above(True)
+		self.ui.buttonPng.connect("clicked", self.winShoot)
+		self.ui.buttonTest.connect("clicked", self.treeTest)
+		self.ui.buttonExit.connect("clicked", self.appExit)
 		return
 
 	def chooseInit(self):
-		self.ucClList=avrList.listAVR()
-		self.ucList=self.ucClList.listAVRs()
+		self.ucList=self.devParam.devParams()
 		self.lnUcList=len(self.ucList)
 		for ucIndex in range(self.lnUcList):
-			self.lsUcSelect.append([self.ucList[ucIndex]])
+			self.ui.lsUcSelect.append([self.ucList[ucIndex]])
 		#self.cbUcSelect.set_active(0)
 		return
 ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
@@ -255,15 +95,15 @@ class FuseAVR:
 		return lsmodel
 
 	def treeFill(self, indexAVR):
-		self.avrData=self.ucClList.getAVR(indexAVR)
-		self.avrBits=self.ucClList.bitsAVR
+		self.avrData=self.devParam.getAVR(indexAVR)
+		self.avrBits=self.devParam.avrCfgBits
 		self.tvBitsIter=[]
-		self.tsBits.clear()
+		self.ui.tsBits.clear()
 		byteFuses=sorted(self.avrData['Fuses'].keys())
 		for byteFuse in byteFuses:
 			locIter=[]
-			locIter.append( self.tsBits.append(None,
-					[self.fsBPixbuf,
+			locIter.append( self.ui.tsBits.append(None,
+					[self.ui.fsBPixbuf,
 					'FuseByte%s' % (byteFuse),
 					'%s FuseByte' % (byteFuse),
 				'',
@@ -288,8 +128,8 @@ class FuseAVR:
 						self.selSUT=self.avrBits[bitFuse]['SUT_SEL'][defaultFuse[0]]
 					else:
 						self.selSUT=''
-				locIter.append(self.tsBits.append(locIter[0],
-					[self.fsbPixbuf,
+				locIter.append(self.ui.tsBits.append(locIter[0],
+					[self.ui.fsbPixbuf,
 					'%s' % (bitShowName),
 					self.avrBits[bitFuse]['Desc'],
 					defaultFuse[1],
@@ -302,8 +142,8 @@ class FuseAVR:
 				
 			self.tvBitsIter.append(locIter)
 		locIter=[]
-		locIter.append( self.tsBits.append(None,
-				[self.lBPixbuf, 'LockByte',
+		locIter.append( self.ui.tsBits.append(None,
+				[self.ui.lBPixbuf, 'LockByte',
 				'Lock Byte',
 				'',
 				'',
@@ -315,8 +155,8 @@ class FuseAVR:
 		for bitLock in self.avrData['Lock']:
 			defaultLock=self.defaultBit(bitLock)
 			modelLock=self.bitListView(bitLock)
-			locIter.append(self.tsBits.append(locIter[0],
-				[self.lbPixbuf,
+			locIter.append(self.ui.tsBits.append(locIter[0],
+				[self.ui.lbPixbuf,
 				'%s' % (bitLock),
 				self.avrBits[bitLock]['Desc'],
 				defaultLock[1],
@@ -331,12 +171,13 @@ class FuseAVR:
 		return
 
 	def avrdudeGo(self, widget):
-		AvrdudeCmd=self.textAvrdudeCmd.get_text()
+		AvrdudeCmd=self.ui.textAvrdudeCmd.get_text()
 		if AvrdudeCmd:
 			avrdudeTargets=subprocess.Popen(
 				shlex.split(AvrdudeCmd),
 				stdout=subprocess.PIPE,
-				stderr=subprocess.PIPE)
+				stderr=subprocess.STDOUT)
+				#stderr=subprocess.PIPE)
 			child_stdout, child_stderr = avrdudeTargets.communicate()
 			if child_stderr:
 				self.errBox(message=child_stderr)
@@ -345,37 +186,29 @@ class FuseAVR:
 		return
 
 	def avrdudeListuC(self):
-		#avrdudeTargets=subprocess.Popen(
-			#shlex.split('avrdude -p?'),
-			#stdout=subprocess.PIPE,
-			#stderr=subprocess.PIPE)
-		#child_stdout, child_stderr = avrdudeTargets.communicate()
-		#for lineErr in child_stderr.splitlines():
-			#findEqu=lineErr.find(' = ')
-			#if findEqu!=-1:
-				#findE=lineErr.find(' [', findEqu+3)
-				#uC=self.ucClList.nameFromAVD(lineErr[0:findEqu].strip())
-				#uC2=lineErr[findEqu+3:findE].strip()
-				#if uC!=-1:
-					#print "Is really \"%s\" match \"%s\" ?" % (uC, uC2)
-		#print "stdout:\n%s\nstderr:\n%s" % (child_stdout, child_stderr)
 		return
 
 	def avrdudeIcGo(self, widget, icoPos, sigEvent):
 		self.avrdudeGo(widget)
 		return
 
+	def callSkipSelection(self, cellrenderer, editable, path):
+		#print(cellrenderer, editable, path)
+		self.treeUnselect()
+		return
+
 	def cbBitsChanged(self, comboCellRenderer, cell_path, select_iter):
-		bitIter = self.tsBits.get_iter(cell_path)
-		lSt=self.tsBits.get_value(bitIter, 5) # Get ListStore saved at 5 collumn
-		self.tsBits.set(bitIter, 3, lSt.get_value(select_iter, 0), 4, lSt.get_value(select_iter, 1))
+		bitIter = self.ui.tsBits.get_iter(cell_path)
+		lSt=self.ui.tsBits.get_value(bitIter, 5) # Get ListStore saved at 5 collumn
+		self.ui.tsBits.set(bitIter, 3, lSt.get_value(select_iter, 0), 4, lSt.get_value(select_iter, 1))
 		self.byteUpdate(int(cell_path[0:1]))
+		#self.treeUnselect()
 		self.avrDudeUp()
 
 	def byteEdited(self, cellRendererText, cell_path, newText):
 		reHexTxt=self.reHex.match(newText)
 		reBinTxt=self.reBin.match(newText)
-		byteIt = self.tsBits.get_iter(cell_path)
+		byteIt = self.ui.tsBits.get_iter(cell_path)
 		if reHexTxt:
 			byteVal=int(reHexTxt.group(2).upper(), 16)
 		elif reBinTxt:
@@ -385,8 +218,9 @@ class FuseAVR:
 		else:
 			byteVal=0x100
 		if byteVal in range(0x100):
-			self.tsBits.set(byteIt, 3,'0b{:08b}'.format(byteVal), 4, '0x{:02X}'.format(byteVal))
+			self.ui.tsBits.set(byteIt, 3,'0b{:08b}'.format(byteVal), 4, '0x{:02X}'.format(byteVal))
 		self.bitsUpdate(int(cell_path[0:1]))
+		self.treeUnselect()
 		self.avrDudeUp()
 		return
 
@@ -403,17 +237,17 @@ class FuseAVR:
 		viewModel = widget.get_model()
 		index = widget.get_active()
 		if index > -1:
-			self.tvBits.freeze_child_notify()
-			modelBits=self.tvBits.get_model()
-			self.tvBits.set_model(None)
+			self.ui.tvBits.freeze_child_notify()
+			modelBits=self.ui.tvBits.get_model()
+			self.ui.tvBits.set_model(None)
 
 			# Add rows to the viewModel
 			# ...
 			self.treeFill(index)
 
-			self.tvBits.set_model(modelBits)
-			self.tvBits.thaw_child_notify()
-			self.tvBits.expand_all()
+			self.ui.tvBits.set_model(modelBits)
+			self.ui.tvBits.thaw_child_notify()
+			self.ui.tvBits.expand_all()
 			self.bDefaultLock=True
 
 		for n in range(len(self.tvBitsIter)):
@@ -427,17 +261,17 @@ class FuseAVR:
 		binByteTxt=''
 		for n in range(bitCfgs):
 			bitIt=self.tvBitsIter[selectNo][n+1]
-			bitName=self.tsBits.get_value(bitIt, 8)
-			bitVal=self.tsBits.get_value(bitIt, 4)
+			bitName=self.ui.tsBits.get_value(bitIt, 8)
+			bitVal=self.ui.tsBits.get_value(bitIt, 4)
 			if bitName=='SUT_SEL':
 				bitName=self.selSUT
 				bitDesc=self.avrBits[bitName]['Desc']
 				bitModel=self.bitListView(bitName)
-				self.tsBits.set(bitIt, 2, bitDesc, 5, bitModel)
+				self.ui.tsBits.set(bitIt, 2, bitDesc, 5, bitModel)
 				if not(bitVal in self.avrBits[bitName]['Config'][1].keys()):
 					bitVal=self.defaultBit(bitName)[0]
-					self.tsBits.set_value(bitIt, 4, bitVal)
-				self.tsBits.set_value(bitIt, 3, self.avrBits[bitName]['Config'][1][bitVal])
+					self.ui.tsBits.set_value(bitIt, 4, bitVal)
+				self.ui.tsBits.set_value(bitIt, 3, self.avrBits[bitName]['Config'][1][bitVal])
 			if bitName[0:6]=='CKSEL4':
 				if 'SUT_SEL' in self.avrBits[bitName]:
 					self.selSUT=self.avrBits[bitName]['SUT_SEL'][bitVal]
@@ -445,8 +279,8 @@ class FuseAVR:
 					self.selSUT=''
 			binByteTxt="%s%s" % (bitVal, binByteTxt)
 		byteVal=int(binByteTxt, 2)
-		self.tsBits.set(byteIt, 3,'0b{:08b}'.format(byteVal), 4, '0x{:02X}'.format(byteVal))
-		byteName=self.tsBits.get_value(byteIt, 8)
+		self.ui.tsBits.set(byteIt, 3,'0b{:08b}'.format(byteVal), 4, '0x{:02X}'.format(byteVal))
+		byteName=self.ui.tsBits.get_value(byteIt, 8)
 		if byteName=='Lock' and self.bDefaultLock==True:
 			self.defaultLock='0x{:02X}'.format(byteVal)
 			self.bDefaultLock=False
@@ -457,20 +291,20 @@ class FuseAVR:
 		bDefaultSet=False
 		byteIt=self.tvBitsIter[selectNo][0]
 		bitCfgs=len(self.tvBitsIter[selectNo])-1
-		binByteTxt=self.tsBits.get_value(byteIt, 3)[2:10]
+		binByteTxt=self.ui.tsBits.get_value(byteIt, 3)[2:10]
 		bitPtr=8
 		for n in range(bitCfgs):
 			bitIt=self.tvBitsIter[selectNo][n+1]
-			bitName=self.tsBits.get_value(bitIt, 8)
+			bitName=self.ui.tsBits.get_value(bitIt, 8)
 			if bitName=='SUT_SEL':
 				bitName=self.selSUT
 				bitDesc=self.avrBits[bitName]['Desc']
 				bitModel=self.bitListView(bitName)
-				self.tsBits.set(bitIt, 2, bitDesc, 5, bitModel)
+				self.ui.tsBits.set(bitIt, 2, bitDesc, 5, bitModel)
 			widthConfig=self.avrBits[bitName]['Config'][0]
 			bitPtrB=bitPtr-widthConfig
 			bitVal=binByteTxt[bitPtrB:bitPtr]
-			if bitName[0:6]=='CKSEL4':
+			if bitName.startswith('CKSEL4'):
 				if 'SUT_SEL' in self.avrBits[bitName]:
 					self.selSUT=self.avrBits[bitName]['SUT_SEL'][bitVal]
 				else:
@@ -481,7 +315,7 @@ class FuseAVR:
 			else:
 				bitVal, setupTxt=self.defaultBit(bitName)
 				bDefaultSet=True
-			self.tsBits.set(bitIt, 3, setupTxt, 4, bitVal)
+			self.ui.tsBits.set(bitIt, 3, setupTxt, 4, bitVal)
 			bitPtr=bitPtrB
 		if bitPtr>0:
 			bDefaultSet=True
@@ -494,21 +328,27 @@ class FuseAVR:
 			updateText={
 				True:' -B 8',
 				False:''
-			}[self.checkClk.get_active()]
+			}[self.ui.checkClk.get_active()]
 			updateText+={
 				True:' -e',
 				False:''
-			}[self.checkErase.get_active()]
+			}[self.ui.checkErase.get_active()]
 			for byteCfg in range(len(self.tvBitsIter)):
 				byteIt=self.tvBitsIter[byteCfg][0]
-				byteNm=self.ucClList.avdCfgByte(self.tsBits.get_value(byteIt, 8))
-				byteVal=self.tsBits.get_value(byteIt, 4)
+				byteNm=self.devParam.avdCfgByte(self.ui.tsBits.get_value(byteIt, 8))
+				byteVal=self.ui.tsBits.get_value(byteIt, 4)
 				if byteNm=='lock' and byteVal!=self.defaultLock or byteNm!='lock':
 					updateText+=' -U %s:w:%s:m' % (byteNm, byteVal)
-			setText="avrdude -c %s -P %s -p %s%s" % (self.avdPgm, self.avdPgmPort, self.ucClList.avdName(self.avrData['Name']), updateText)
-			self.textAvrdudeCmd.set_text(setText)
+			setText="avrdude -c %s -P %s -p %s%s" % (self.avdPgm, self.avdPgmPort, self.devParam.avdName(self.avrData['Name']), updateText)
+			self.ui.textAvrdudeCmd.set_text(setText)
 		except AttributeError:
 			pass
+		return
+
+	def treeUnselect(self):
+		mode=self.ui.tvBitsSelection.get_mode()
+		self.ui.tvBitsSelection.set_mode(gtk.SELECTION_NONE)
+		self.ui.tvBitsSelection.set_mode(mode)
 		return
 
 	def avrErTog(self, widget):
@@ -516,12 +356,35 @@ class FuseAVR:
 		return
 
 	def treeTest(self, widget):
-		self.avrdudeListuC()
 		return
+		
 
-	def quit_cb(self, widget):
-		self.ucClList.empty()
+	def appExit(self, widget):
+		self.devParam.empty()
 		gtk.main_quit()
+
+	def winShoot(self, widget):
+		screen = gtk.gdk.screen_get_default()
+		gdk_win =screen.get_active_window()
+		posX, posY, width, height  = gdk_win.get_frame_extents()
+		pixbuf = gtk.gdk.Pixbuf(gtk.gdk.COLORSPACE_RGB, True, 8, width, height)
+		# Retrieve the pixel data from the gdk.window attribute (self.ui.mainWindow.window)
+		# of the gtk.window object
+		#screenshot = pixbuf.get_from_drawable(
+			#self.ui.mainWindow.window,
+			#self.ui.mainWindow.get_colormap(),
+			#0, 0, 0, 0, width, height)
+		
+		screenshot = pixbuf.get_from_drawable(
+			gtk.gdk.get_default_root_window(),
+			gtk.gdk.colormap_get_system(),
+			posX, posY, 0, 0, width, height)
+		
+		#gtk.FileChooser
+		screenshot.save('screenshot.png', 'png')
+		del screenshot
+		gc.collect()
+		return
 
 	def infoBox(self, message="Known Comes...!", caption = 'Information...'):
 		dlg = gtk.MessageDialog(parent=None, flags=gtk.DIALOG_DESTROY_WITH_PARENT, type=gtk.MESSAGE_INFO, buttons=gtk.BUTTONS_CLOSE, message_format=None)
@@ -540,4 +403,4 @@ class FuseAVR:
 
 
 if __name__ == "__main__":
-	configAVR = FuseAVR()
+	configAVR = clCfgAVR()

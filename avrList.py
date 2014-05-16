@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import re
 
@@ -11,11 +11,11 @@ Interrupt Vectors are placed in the %s section,
 interrupts are disabled while executing from the
 %s section"""
 lspmTxt="%s\n%s" % (spmTxt, lpmTxt)
-class listAVR:
+class devParam:
 	def __init__(self):
 		arBoo='Boot loader'
 		arApp='Application'
-		self.bitsAVR = {
+		self.avrCfgBits = {
 			#Common
 			'RES1':{'Desc':"Empty",
 				'NameShow':"RESERVED",
@@ -29,6 +29,10 @@ class listAVR:
 				'NameShow':"RESERVED",
 				'Config':(3,{
 					'111':"3 bits as High"})},
+			'RES4':{'Desc':"Empty",
+				'NameShow':"RESERVED",
+				'Config':(4,{
+					'1111':"4 bits as High"})},
 			'RES5':{'Desc':"Empty",
 				'NameShow':"RESERVED",
 				'Config':(5,{
@@ -60,7 +64,7 @@ Parallel Programming modes"""})},
 					'11':okTxt % arApp,
 					'10':spmTxt % arApp,
 					'01':lpmTxt % (arBoo, arApp, arBoo, arApp),
-					'00':lspmTxt% (arApp, arBoo, arApp, arBoo, arApp) })},
+					'00':lspmTxt % (arApp, arBoo, arApp, arBoo, arApp) })},
 			'BLB1':{'Desc':"Bootloader Area Lockbits",
 				'Config':(2,{
 					'11':okTxt % arBoo,
@@ -469,13 +473,22 @@ Parallel Programming modes"""})},
 			{ 'Name' : "ATmega16", 'Fuses' : {'Low':("CKSEL4_INT1M_2M_4M_8M", "SUT_SEL", "BODEN", "BODLEVEL1"), 'High':("BOOTRST", "BOOTSZ2_2k", "EESAVE", "CKOPT", "SPIEN", "JTAGEN", "OCDEN")}, 'Lock' : ("LB", "BLB0", "BLB1", "RES2")},
 			{ 'Name' : "ATmega32", 'Fuses' : {'Low':("CKSEL4_INT1M_2M_4M_8M", "SUT_SEL", "BODEN", "BODLEVEL1"), 'High':("BOOTRST", "BOOTSZ2_4k", "EESAVE", "CKOPT", "SPIEN", "JTAGEN", "OCDEN")}, 'Lock' : ("LB", "BLB0", "BLB1", "RES2")},
 			{ 'Name' : "ATmega162", 'Fuses' : {'Low':("CKSEL4_INT8M_32k", "SUT_SEL", "CKOUT", "CKDIV8"), 'High':("BOOTRST", "BOOTSZ2_2k", "EESAVE", "WDTON", "SPIEN", "JTAGEN", "OCDEN"), 'Extended':("RES1", "BODLEVEL3", "M161C", "RES3")}, 'Lock' : ("LB", "BLB0", "BLB1", "RES2")},
-			{ 'Name' : "ATmega164", 'Fuses' : {'Low':("CKSEL4_INT8M_128k", "SUT_SEL", "CKOUT", "CKDIV8"), 'High':("BOOTRST", "BOOTSZ2_2k", "EESAVE", "WDTON", "SPIEN", "JTAGEN", "OCDEN"), 'Extended':("BODLEVEL3", "RES5")}, 'Lock' : ("LB", "BLB0", "BLB1")},
-			{ 'Name' : "ATmega644", 'Fuses' : {'Low':("CKSEL4_INT8M_128k", "SUT_SEL", "CKOUT", "CKDIV8"), 'High':("BOOTRST", "BOOTSZ2_8k", "EESAVE", "WDTON", "SPIEN", "JTAGEN", "OCDEN"), 'Extended':("BODLEVEL3", "RES5")}, 'Lock' : ("LB", "BLB0", "BLB1")},
+			{ 'Name' : "ATmega164", 'Fuses' : {'Low':("CKSEL4_INT8M_128k", "SUT_SEL", "CKOUT", "CKDIV8"), 'High':("BOOTRST", "BOOTSZ2_2k", "EESAVE", "WDTON", "SPIEN", "JTAGEN", "OCDEN"), 'Extended':("BODLEVEL3", "RES5")}, 'Lock' : ("LB", "BLB0", "BLB1", "RES2")},
+			{ 'Name' : "ATmega164A", 'Fuses' : {'Low':("CKSEL4_INT8M_128k", "SUT_SEL", "CKOUT", "CKDIV8"), 'High':("BOOTRST", "BOOTSZ2_2k", "EESAVE", "WDTON", "SPIEN", "JTAGEN", "OCDEN"), 'Extended':("BODLEVEL3", "RES5")}, 'Lock' : ("LB", "BLB0", "BLB1", "RES2")},
+			{ 'Name' : "ATmega644",  'Fuses' : {'Low':("CKSEL4_INT8M_128k", "SUT_SEL", "CKOUT", "CKDIV8"), 'High':("BOOTRST", "BOOTSZ2_8k", "EESAVE", "WDTON", "SPIEN", "JTAGEN", "OCDEN"), 'Extended':("BODLEVEL3", "RES5")}, 'Lock' : ("LB", "BLB0", "BLB1")},
+			{ 'Name' : "ATmega2560", 'Fuses' : {'Low':("CKSEL4_INT8M_128k", "SUT_SEL", "CKOUT", "CKDIV8"), 'High':("BOOTRST", "BOOTSZ2_8k", "EESAVE", "WDTON", "SPIEN", "JTAGEN", "OCDEN"), 'Extended':("BODLEVEL3", "RES5")}, 'Lock' : ("LB", "BLB0", "BLB1")},
 			{ 'Name' : "ATmega128", 'Fuses' : {'Low':("CKSEL4_INT1M_2M_4M_8M", "SUT_SEL", "BODEN", "BODLEVEL1"), 'High':("BOOTRST", "BOOTSZ2_8k", "EESAVE", "CKOPT", "SPIEN", "JTAGEN", "OCDEN"), 'Extended':("WDTON", "M103C", "RES6")}, 'Lock' : ("LB", "BLB0", "BLB1", "RES2")},
 			{ 'Name' : "ATtiny13", 'Fuses' : {'Low':("CKSEL2", "SUT2_CS2", "CKDIV8", "WDTON", "EESAVE", "SPIEN"), 'High':( "RSTDISBL", "BODLEVEL2", "DWEN", "SELFPRGEN")}, 'Lock' : ("LB",)},
 			{ 'Name' : "ATtiny2313", 'Fuses' : {'Low':("CKSEL4_INT4M_8M_128k", "SUT_SEL", "CKOUT", "CKDIV8"), 'High':("RSTDISBL", "BODLEVEL3", "WDTON", "SPIEN", "EESAVE", "DWEN"), 'Extended':("SELFPRGEN", "RES7")}, 'Lock' : ("LB",)},
 			{ 'Name' : "ATtiny25", 'Fuses' : {'Low':("CKSEL4_PLL_INT4M_8M_128k", "SUT_SEL", "CKOUT", "CKDIV8"), 'High':("BODLEVEL3", "EESAVE", "WDTON", "SPIEN", "DWEN", "RSTDISBL"), 'Extended':("SELFPRGEN", "RES7")}, 'Lock' : ("LB",)}
 		]
+		self.lsProgrammers = (
+		('USBasp', 'usbasp', '/dev/usbasp'),
+		('AVR Dragon ISP', 'dragon_isp', 'usb'), # /dev/avrdragon
+		('AVR Dragon PP', 'dragon_pp', 'usb'), # /dev/avrdragon
+		('Amountec JTAG Key', 'jtagkey', 'usb') # /dev/jtagkey2
+		)
+
 	
 	def add(self,ucAVR):
 		self.lsAVR.append(ucAVR)
@@ -486,15 +499,30 @@ Parallel Programming modes"""})},
 			self.lsAVR.pop()
 			cLib-=1
 	
-	def listAVRs(self):
-		self.namesAVR = []
+	def devParams(self):
+		namesAVR = []
 		ucAVRs=len(self.lsAVR)
 		for n in range(ucAVRs):
-			self.namesAVR.append(self.lsAVR[n]['Name'])
-		return self.namesAVR
+			namesAVR.append(self.lsAVR[n]['Name'])
+		return namesAVR
 	
 	def getAVR(self, index):
 		return self.lsAVR[index]
+	
+	def listAVRCfg(self, avrName):
+		for n in range(len(self.lsAVR)):
+			if avrName == (self.lsAVR[n]['Name']):
+				lsCfg = []
+				for Fuse in sorted(self.lsAVR[n]['Fuses'].keys(), key=('Extended', 'High', 'Low', 'Single').index):
+					if Fuse == 'Single':
+						fuseName = 'Fuse'
+					else:
+						fuseName = "Fuse%s" % Fuse[0]
+					lsCfg.append(fuseName)
+				if self.lsAVR[n].has_key('Lock'):
+					lsCfg.append('Lock')
+				return lsCfg
+		return None
 
 	
 	def dbgListAVRs(self):
@@ -510,7 +538,7 @@ Parallel Programming modes"""})},
 				for bitFuse in range(len(self.lsAVR[n]['Fuses'][keyFuse])):
 					debugPrint += "${%s}" % (self.lsAVR[n]['Fuses'][keyFuse][bitFuse])
 				debugPrint += ")\n"
-		print debugPrint
+		print (debugPrint)
 		return
 
 	def avdName(self, FullName):
@@ -533,22 +561,20 @@ Parallel Programming modes"""})},
 
 	def nameFromAVD(self, nameAVD):
 		FullName=-1
-		reSameDigits=re.compile('([0-9]{1,4})$', re.L)
-		if nameAVD[0:1]=='m':
-			FullName="ATmega%s" % (nameAVD[1:len(nameAVD)].upper())
-		elif nameAVD[0:3]=='usb':
-			FullName="AT90%s" % (nameAVD.upper())
-		elif nameAVD[0:3]=='pwm':
-			FullName="AT90%s" % (nameAVD.upper())
-		elif nameAVD[0:1]=='c':
-			FullName="AT90CAN%s" % (nameAVD[1:len(nameAVD)].upper())
-		elif nameAVD[0:1]=='x':
-			FullName="ATxmega%s" % (nameAVD[1:len(nameAVD)].upper())
-		elif nameAVD[0:1]=='t':
-			FullName="ATtiny%s" % (nameAVD[1:len(nameAVD)].upper())
-		elif reSameDigits.match(nameAVD):
-			FullName="AT90S%s" % (nameAVD)
-		return FullName
+		reNameAVD=re.compile('(?P<mark>c|m|t|x|(usb)|(pwm))?(?P<uCid>[0-9]{1,4}[a-z]*)$', re.U)
+		match = reNameAVD.match(nameAVD)
+		if match:
+			mark = match.group('mark')
+			uCid = match.group('uCid')
+			return {
+				'm' : "ATmega%s" % (uCid.upper()),
+				'usb' : "AT90%s%s" % (mark.upper(), uCid.upper()),
+				'pwm' : "AT90%s%s" % (mark.upper(), uCid.upper()),
+				'c' : "AT90CAN%s" % (uCid.upper()),
+				'x' : "ATxmega%s" % (uCid.upper()),
+				't' : "ATtiny%s" % (uCid.upper()),
+				'' : "AT90S%s" % (uCid.upper()),
+				}[mark]
 
 	def avdCfgByte(self, FullName):
 		return{
